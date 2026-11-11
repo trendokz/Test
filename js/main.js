@@ -58,14 +58,48 @@ export function productName(cfg) {
 // ---------------------------------------------------------------------------
 //  Маршрутизация (hash)
 // ---------------------------------------------------------------------------
+// Адреса страниц — только латиница, цифры и дефисы (так ссылка работает
+// на любом хостинге и во встроенных просмотрщиках):
+//   #catalog-rings-round-oval                     — каталог
+//   #ring-oval-pave-halo-150-rose-same-585-white-white-170 — кольцо
+//   #studs-round-halo-100-white-same-750-white-white     — пусеты
+const RING_KEYS = ['shape', 'shank', 'setting', 'carat', 'metal', 'head', 'purity', 'gem1', 'gem2', 'size'];
+const STUD_KEYS = ['shape', 'setting', 'carat', 'metal', 'head', 'purity', 'gem1', 'gem2'];
+
 function parseHash() {
-  const raw = location.hash.replace(/^#/, '') || '/';
-  const [path, qs = ''] = raw.split('?');
-  return { path, params: new URLSearchParams(qs) };
+  const raw = decodeURIComponent(location.hash.replace(/^#/, ''));
+  const [head, ...rest] = raw.split('-');
+  const params = new URLSearchParams();
+  if (head === 'catalog') {
+    const shapes = rest.filter((t) => SHAPES.some((s) => s.id === t));
+    const type = rest.find((t) => t === 'rings' || t === 'studs');
+    if (shapes.length) params.set('shapes', shapes.join(','));
+    if (type) params.set('type', type);
+    return { path: '/catalog', params };
+  }
+  if (head === 'ring' || head === 'studs') {
+    (head === 'ring' ? RING_KEYS : STUD_KEYS).forEach((k, i) => {
+      if (rest[i] == null) return;
+      let v = rest[i];
+      if (k === 'carat') v = String(parseInt(v, 10) / 100);
+      if (k === 'size') v = String(parseInt(v, 10) / 10);
+      params.set(k, v);
+    });
+    return { path: '/' + head, params };
+  }
+  return { path: '/', params };
 }
-function go(path, params) {
-  const qs = params ? '?' + new URLSearchParams(params).toString() : '';
-  location.hash = path + qs;
+function catalogHash(shapes = [], type = 'all') {
+  return '#' + ['catalog', ...(type !== 'all' ? [type] : []), ...shapes].join('-');
+}
+function cfgHash(cfg) {
+  const isRing = cfg.type !== 'studs';
+  const vals = (isRing ? RING_KEYS : STUD_KEYS).map((k) => {
+    if (k === 'carat') return Math.round(cfg.carat * 100);
+    if (k === 'size') return Math.round(cfg.size * 10);
+    return cfg[k];
+  });
+  return '#' + [isRing ? 'ring' : 'studs', ...vals].join('-');
 }
 
 function cfgFromParams(type, p) {
@@ -92,8 +126,11 @@ function cfgToParams(cfg) {
   if (cfg.type !== 'studs') Object.assign(o, { shank: cfg.shank, size: cfg.size });
   return o;
 }
-const cfgPath = (cfg) => (cfg.type === 'studs' ? '/studs' : '/ring');
-const cfgUrl = (cfg) => `${location.origin}${location.pathname}#${cfgPath(cfg)}?${new URLSearchParams(cfgToParams(cfg))}`;
+// Внутри встроенного просмотрщика (iframe) своего адреса у страницы нет — ссылку не даём.
+const embedded = (() => { try { return window.self !== window.top || location.origin === 'null'; } catch { return true; } })();
+const cfgUrl = (cfg) => (embedded ? null : `${location.origin}${location.pathname}${cfgHash(cfg)}`);
+const cfgText = (cfg) => `${productName(cfg)}, ${cfg.carat} ct, ${byId(METALS, cfg.metal).label} ${byId(PURITIES, cfg.purity).label}`
+  + (cfg.type !== 'studs' ? `, размер ${cfg.size}` : '') + ` — ${money(priceOf(cfg))}`;
 
 // ---------------------------------------------------------------------------
 //  Общие элементы
@@ -101,8 +138,8 @@ const cfgUrl = (cfg) => `${location.origin}${location.pathname}#${cfgPath(cfg)}?
 function header(back) {
   return `<header class="topbar">
     ${back ? `<a class="topbar__back" href="${back}" aria-label="Назад">←</a>` : '<span class="topbar__back"></span>'}
-    <a class="brand" href="#/">${esc(BRAND.name)}</a>
-    <a class="topbar__link" href="#/catalog">Каталог</a>
+    <a class="brand" href="#home">${esc(BRAND.name)}</a>
+    <a class="topbar__link" href="#catalog">Каталог</a>
   </header>`;
 }
 
@@ -149,7 +186,7 @@ function renderHome() {
     if (selected.size === SHAPES.length) selected.clear(); else SHAPES.forEach((s) => selected.add(s.id));
     sync();
   });
-  btn.addEventListener('click', () => go('/catalog', selected.size ? { shapes: [...selected].join(',') } : undefined));
+  btn.addEventListener('click', () => { location.hash = catalogHash([...selected]); });
 }
 
 function plural(n, [one, few, many]) {
@@ -185,16 +222,16 @@ async function renderCatalog(params) {
   items.sort((a, b) => priceOf(a) - priceOf(b));
 
   const shapeLabel = shapeIds.length ? shapeIds.map((id) => byId(SHAPES, id).label).join(', ') : 'Все формы';
-  const tab = (id, label) => `<a class="chip ${type === id ? 'is-active' : ''}" href="#/catalog?${new URLSearchParams({ ...(shapeIds.length ? { shapes: shapeIds.join(',') } : {}), ...(id !== 'all' ? { type: id } : {}) })}">${label}</a>`;
-  app.innerHTML = `${header('#/')}
+  const tab = (id, label) => `<a class="chip ${type === id ? 'is-active' : ''}" href="${catalogHash(shapeIds, id)}">${label}</a>`;
+  app.innerHTML = `${header('#home')}
   <main class="catalog">
     <div class="catalog__bar">
-      <a class="shape-filter" href="#/">${shapeSVG(shapes[0], 22)}<span>${esc(shapeLabel)}</span><em>Изменить</em></a>
+      <a class="shape-filter" href="#home">${shapeSVG(shapes[0], 22)}<span>${esc(shapeLabel)}</span><em>Изменить</em></a>
       <div class="chips">${tab('all', 'Все')}${tab('rings', 'Кольца')}${tab('studs', 'Пусеты')}</div>
     </div>
     <p class="catalog__count">${items.length} ${plural(items.length, ['изделие', 'изделия', 'изделий'])} · цены за камень 1 ct, металл и камни настраиваются</p>
     <div class="product-grid">
-      ${items.map((cfg, i) => `<a class="card" href="#${cfgPath(cfg)}?${new URLSearchParams(cfgToParams(cfg))}" data-i="${i}">
+      ${items.map((cfg, i) => `<a class="card" href="${cfgHash(cfg)}" data-i="${i}">
           <div class="card__img"><div class="card__ph" aria-hidden="true">${shapeSVG(cfg.shape, 48)}</div></div>
           <div class="card__body"><div class="card__name">${esc(productName(cfg))}</div><div class="card__price">от ${money(priceOf(cfg))}</div></div>
         </a>`).join('')}
@@ -239,7 +276,7 @@ async function renderConfigurator(type, params) {
   const cfg = cfgFromParams(type, params);
   const isRing = type !== 'studs';
 
-  app.innerHTML = `${header('#/catalog?' + new URLSearchParams({ shapes: cfg.shape }))}
+  app.innerHTML = `${header(catalogHash([cfg.shape]))}
   <main class="config">
     <section class="stage" id="stage">
       <div class="stage__canvas" id="canvasHost"></div>
@@ -313,7 +350,7 @@ async function renderConfigurator(type, params) {
     $('#summary').innerHTML = `<dl>${rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>`;
   }
 
-  const syncUrl = () => history.replaceState(null, '', `#${cfgPath(cfg)}?${new URLSearchParams(cfgToParams(cfg))}`);
+  const syncUrl = () => { try { history.replaceState(null, '', cfgHash(cfg)); } catch { /* встроенный просмотр */ } };
 
   let update3D = () => {};
   function apply(key, val, rerenderOpts) {
@@ -340,11 +377,16 @@ async function renderConfigurator(type, params) {
   renderSummary();
   $('#orderBtn').addEventListener('click', () => openOrder(cfg));
   $('#shareBtn').addEventListener('click', async () => {
-    const url = cfgUrl(cfg);
+    const url = cfgUrl(cfg) || cfgText(cfg);
     try {
-      if (navigator.share) await navigator.share({ title: productName(cfg), url });
-      else { await navigator.clipboard.writeText(url); toast('Ссылка скопирована'); }
-    } catch { /* пользователь отменил */ }
+      await navigator.clipboard.writeText(url);
+      toast(cfgUrl(cfg) ? 'Ссылка скопирована' : 'Описание изделия скопировано');
+    } catch {
+      const m = modal(`<h2>Поделиться</h2><p class="muted">Скопируйте и отправьте.</p>
+        <input class="share-input" id="shareUrl" readonly value="${esc(url)}">`);
+      const inp = $('#shareUrl', m.el);
+      inp.focus(); inp.select();
+    }
   });
 
   // --- 3D
@@ -380,7 +422,7 @@ async function renderConfigurator(type, params) {
   $('#fsBtn').addEventListener('click', () => {
     const st = $('#stage');
     if (document.fullscreenElement) document.exitFullscreen();
-    else if (st.requestFullscreen) st.requestFullscreen();
+    else if (st.requestFullscreen) st.requestFullscreen().catch(() => st.classList.toggle('is-max'));
     else st.classList.toggle('is-max');
   });
 }
@@ -426,11 +468,23 @@ function openOrder(cfg) {
       `Имя: ${f.get('name')}`,
       `Телефон: ${f.get('phone')}`,
       f.get('comment') ? `Комментарий: ${f.get('comment')}` : null,
-      `Ссылка: ${cfgUrl(cfg)}`,
+      cfgUrl(cfg) ? `Ссылка: ${cfgUrl(cfg)}` : null,
     ].filter(Boolean);
-    window.open(`https://wa.me/${city.whatsapp}?text=${encodeURIComponent(lines.join('\n'))}`, '_blank', 'noopener');
-    m.close();
-    toast('Открываем WhatsApp…');
+    const text = lines.join('\n');
+    const href = `https://wa.me/${city.whatsapp}?text=${encodeURIComponent(text)}`;
+    const box = m.el.querySelector('.modal__box');
+    box.innerHTML = `<button class="modal__x" aria-label="Закрыть">×</button>
+      <h2>Заявка готова</h2>
+      <p class="muted">Нажмите кнопку — откроется WhatsApp с готовым сообщением. Останется только отправить его.</p>
+      <a class="btn btn--primary btn--block" href="${esc(href)}" target="_blank" rel="noopener">Открыть WhatsApp</a>
+      <p class="muted order-alt">Если WhatsApp не открылся, напишите на номер <b class="selectable">+${esc(city.whatsapp)}</b> и вставьте текст заявки:</p>
+      <textarea class="order-text" id="orderText" rows="7" readonly>${esc(text)}</textarea>
+      <button class="btn btn--ghost btn--block" id="copyOrder" type="button">Скопировать текст заявки</button>`;
+    $('#copyOrder', box).addEventListener('click', async () => {
+      const ta = $('#orderText', box);
+      try { await navigator.clipboard.writeText(text); toast('Текст скопирован'); }
+      catch { ta.focus(); ta.select(); }
+    });
   });
 }
 
