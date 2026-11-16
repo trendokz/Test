@@ -2,14 +2,30 @@
 import * as THREE from 'three';
 import { getOutline, offsetOutline, resample, stoneWidth, PRONG_ANGLES } from './shapes.js';
 import { METALS, STONE_COLORS } from './config.js';
+import { createGemMaterial, createGemMesh, absorptionFor } from './gem.js';
 
 // ---------------------------------------------------------------------------
 //  Материалы (свои для каждого WebGL-контекста, т.к. env-карты привязаны к нему)
 // ---------------------------------------------------------------------------
 export class MaterialLibrary {
-  constructor(env) {
-    this.env = env; // { pmrem, refractCube, reflectCube }
+  constructor(env, { raytrace = true } = {}) {
+    this.env = env; // { pmrem, refractCube, reflectCube, gemCube }
     this.cache = new Map();
+    this.raytrace = raytrace && !!env.gemCube;
+  }
+  // Реалистичный камень с трассировкой лучей (материал на каждую геометрию)
+  gemRT(id, geometry, quality = {}) {
+    const g = STONE_COLORS.find((x) => x.id === id) || STONE_COLORS[0];
+    const dark = g.id === 'black';
+    return createGemMaterial(geometry, this.env.gemCube, {
+      bounces: quality.bounces ?? 6,
+      ior: dark ? 2.42 : 2.418,
+      dispersion: dark ? 0 : 0.02,
+      absorption: g.id === 'white' ? new THREE.Vector3(0.0, 0.0, 0.004) : absorptionFor(g.color, dark ? 3 : 0.32),
+      tint: dark ? new THREE.Color(0.05, 0.05, 0.06) : new THREE.Color(1, 1, 1),
+      reflectivity: dark ? 1.6 : 1,
+      envIntensity: 1,
+    });
   }
   _get(key, make) {
     if (!this.cache.has(key)) this.cache.set(key, make());
@@ -174,7 +190,15 @@ function stoneMesh(geo, mats) {
   return grp;
 }
 
-function instancedStones(geo, mats, matrices) {
+function instancedStones(geo, lib, gemId, matrices) {
+  if (lib.raytrace) {
+    const im = new THREE.InstancedMesh(geo, lib.gemRT(gemId, geo, { bounces: 4 }), matrices.length);
+    matrices.forEach((m, i) => im.setMatrixAt(i, m));
+    im.instanceMatrix.needsUpdate = true;
+    im.userData.disposeMaterial = true;
+    return im;
+  }
+  const mats = lib.gem(gemId);
   const grp = new THREE.Group();
   [['back', 1], ['front', 2], ['fire', 3]].forEach(([k, order]) => {
     const im = new THREE.InstancedMesh(geo, mats[k], matrices.length);
@@ -279,7 +303,6 @@ function buildShank(cfg, Ri, mats, group) {
       const span = (78 * Math.PI) / 180;
       const stepA = (s * 1.12) / R;
       const geo = diamondGeometry('round', s);
-      const mats2 = mats.gem(cfg.gem2);
       const matrices = [];
       const beadPos = [];
       for (const dir of [1, -1]) {
@@ -291,7 +314,7 @@ function buildShank(cfg, Ri, mats, group) {
           for (const z of [-1, 1]) beadPos.push(er.clone().multiplyScalar(R + 0.12).setZ(z * s * 0.56));
         }
       }
-      group.add(instancedStones(geo, mats2, matrices));
+      group.add(instancedStones(geo, mats, cfg.gem2, matrices));
       const bead = new THREE.InstancedMesh(new THREE.SphereGeometry(0.2, 10, 8), metal, beadPos.length);
       beadPos.forEach((p, i) => bead.setMatrixAt(i, new THREE.Matrix4().makeTranslation(p.x, p.y, p.z)));
       group.add(bead);
@@ -354,7 +377,8 @@ export function buildHead(cfg, mats, { baseY = null, baseHalfWidth = 1.1 } = {})
   const { crown, pav } = geo.userData;
   const outline = getOutline(cfg.shape).points.map(([x, z]) => [x * W, z * W]);
   const headMetal = mats.metal(cfg.head === 'white' ? 'white' : cfg.metal);
-  grp.add(stoneMesh(geo, mats.gem(cfg.gem1)));
+  if (mats.raytrace) grp.add(createGemMesh(geo, mats.gemRT(cfg.gem1, geo)));
+  else grp.add(stoneMesh(geo, mats.gem(cfg.gem1)));
 
   const pr = THREE.MathUtils.clamp(0.28 + W * 0.035, 0.38, 0.62); // радиус крапана
   const bottom = baseY ?? -pav - 1.2;
@@ -423,7 +447,7 @@ export function buildHead(cfg, mats, { baseY = null, baseHalfWidth = 1.1 } = {})
     const y = -crown * 0.15;
     const sgeo = diamondGeometry('round', s);
     const matrices = ptsH.map(([x, z]) => new THREE.Matrix4().makeTranslation(x, y, z));
-    grp.add(instancedStones(sgeo, mats.gem(cfg.gem2), matrices));
+    grp.add(instancedStones(sgeo, mats, cfg.gem2, matrices));
     // металлическая рамка ореола
     grp.add(tube(outlinePoints3(offsetOutline(path, s * 0.48), 1, y - s * 0.1), 0.22, true, headMetal, 128));
     grp.add(tube(outlinePoints3(offsetOutline(path, -s * 0.48), 1, y - s * 0.1), 0.18, true, headMetal, 128));
@@ -498,5 +522,8 @@ export function buildProduct(cfg, mats) {
 }
 
 export function disposeObject(obj) {
-  obj.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
+  obj.traverse((o) => {
+    if (o.geometry) o.geometry.dispose();
+    if (o.userData.disposeMaterial && o.material) o.material.dispose();
+  });
 }

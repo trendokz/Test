@@ -19,6 +19,64 @@ function makeStudioScene() {
   add(10, [9, 5, -3], [0.1, 3, 6]);
   add(6, [3, 2, 11], [4, 2, 0.1]);
   add(8, [-3, 6, -11], [5, 1, 0.1]);
+  // глубокий синий отсвет окружения — металл «вписывается» в фон сайта
+  const blue = (pos, scale) => {
+    const m = new THREE.Mesh(boxGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(0.05, 0.12, 0.35) }));
+    m.position.set(...pos); m.scale.set(...scale);
+    scene.add(m);
+  };
+  blue([0, -6, 0], [30, 0.1, 30]);
+  blue([0, 3, -14], [30, 12, 0.1]);
+  return scene;
+}
+
+// Студия для трассировки бриллиантов: тёмная комната с крупными софтбоксами,
+// узкими полосами света и множеством точечных «искр». Высокий контраст
+// светлых и тёмных участков даёт блеск, а точечный свет — радужную игру.
+function makeRTGemScene() {
+  const scene = new THREE.Scene();
+  const sphere = new THREE.SphereGeometry(60, 48, 24);
+  const colors = [];
+  const pos = sphere.getAttribute('position');
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i) / 60; // -1..1
+    const t = (y + 1) / 2;
+    colors.push(0.04 + 0.24 * t * t, 0.045 + 0.26 * t * t, 0.065 + 0.3 * t * t);
+  }
+  sphere.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  scene.add(new THREE.Mesh(sphere, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide })));
+  const plane = new THREE.PlaneGeometry(1, 1);
+  const panel = (k, dir, w, h, tint = [1, 1, 1]) => {
+    const m = new THREE.Mesh(plane, new THREE.MeshBasicMaterial({ color: new THREE.Color(k * tint[0], k * tint[1], k * tint[2]), side: THREE.DoubleSide }));
+    m.position.copy(new THREE.Vector3(...dir).normalize().multiplyScalar(30));
+    m.lookAt(0, 0, 0);
+    m.scale.set(w, h, 1);
+    scene.add(m);
+  };
+  // крупные софтбоксы
+  panel(4.2, [0, 1, 0.15], 22, 22);
+  panel(4.5, [-1, 0.5, 0.8], 14, 20);
+  panel(4.5, [1, 0.5, 0.8], 14, 20);
+  panel(3.5, [0, 0.35, -1], 26, 10);
+  panel(3, [-1, 0.3, -0.7], 10, 16);
+  panel(3, [1, 0.3, -0.7], 10, 16);
+  panel(2.2, [0, 0.15, 1], 20, 8);
+  // узкие полосы (дают чёткие блики на гранях)
+  panel(7, [-1, 0.2, -0.3], 1.2, 22);
+  panel(7, [1, 0.25, -0.4], 1.2, 22);
+  panel(5, [0.3, 0.1, 1], 22, 1);
+  panel(4, [0, -0.25, 1], 26, 0.8);
+  // точечные искры
+  let seed = 11;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  for (let i = 0; i < 90; i++) {
+    const v = [rnd() * 2 - 1, rnd() * 1.6 - 0.35, rnd() * 2 - 1];
+    const s = 0.35 + rnd() * 0.9;
+    panel(18 + rnd() * 40, v, s, s);
+  }
+  // тёплый и холодный рефлекторы — лёгкий цветовой характер, как в студии
+  panel(2.4, [-0.7, 0.9, -0.6], 7, 7, [1, 0.88, 0.72]);
+  panel(2.4, [0.8, 0.8, 0.5], 6, 6, [0.75, 0.86, 1]);
   return scene;
 }
 
@@ -61,10 +119,13 @@ function createEnv(renderer) {
     rt.texture.mapping = mapping;
     return rt.texture;
   };
+  const rtGem = new THREE.WebGLCubeRenderTarget(512, { type: THREE.HalfFloatType, generateMipmaps: false, minFilter: THREE.LinearFilter });
+  new THREE.CubeCamera(0.1, 200, rtGem).update(renderer, makeRTGemScene());
   const env = {
     pmrem,
     refractCube: mk(THREE.CubeRefractionMapping),
     reflectCube: mk(THREE.CubeReflectionMapping),
+    gemCube: renderer.capabilities.isWebGL2 ? rtGem.texture : null,
   };
   pmremGen.dispose();
   return env;
@@ -75,11 +136,27 @@ function shadowTexture() {
   c.width = c.height = 256;
   const g = c.getContext('2d');
   const grd = g.createRadialGradient(128, 128, 0, 128, 128, 128);
-  grd.addColorStop(0, 'rgba(40,30,20,0.42)');
-  grd.addColorStop(0.45, 'rgba(40,30,20,0.16)');
-  grd.addColorStop(1, 'rgba(40,30,20,0)');
+  grd.addColorStop(0, 'rgba(0,4,14,0.65)');
+  grd.addColorStop(0.45, 'rgba(0,4,14,0.25)');
+  grd.addColorStop(1, 'rgba(0,4,14,0)');
   g.fillStyle = grd;
   g.fillRect(0, 0, 256, 256);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+// Фон превью — такой же синий бархатный градиент, как у 3D-сцены
+function thumbBackground() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 512;
+  const g = c.getContext('2d');
+  const grd = g.createRadialGradient(256, 225, 10, 256, 240, 380);
+  grd.addColorStop(0, '#2a4c94');
+  grd.addColorStop(0.45, '#102654');
+  grd.addColorStop(1, '#050b1b');
+  g.fillStyle = grd;
+  g.fillRect(0, 0, 512, 512);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
@@ -128,7 +205,7 @@ export class Viewer {
     this.scene.environment = this.env.pmrem;
     const key = new THREE.DirectionalLight(0xffffff, 1.2);
     key.position.set(3, 6, 4);
-    this.scene.add(key, new THREE.HemisphereLight(0xffffff, 0xd8cfc4, 0.6));
+    this.scene.add(key, new THREE.HemisphereLight(0xfff6ea, 0x1b2c58, 0.55));
 
     this.camera = new THREE.PerspectiveCamera(28, 1, 0.5, 2000);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
@@ -171,6 +248,7 @@ export class Viewer {
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+    this._dirty = true;
   }
 
   setProduct(cfg, { keepView = false } = {}) {
@@ -187,6 +265,7 @@ export class Viewer {
     this.model.position.sub(center);
     this.radius = sphere.radius;
     this.scene.add(this.model);
+    this._dirty = true;
     const floorY = box.min.y - center.y - 0.05;
     this.shadow.position.set(0, floorY, 0);
     const sw = this.kind === 'studs' ? (box.max.x - box.min.x) * 1.2 : sphere.radius * 2.2;
@@ -240,6 +319,7 @@ export class Viewer {
       this.camera.position.copy(v.setLength(r)).add(this.controls.target);
       if (a.t >= 1) this._anim = null;
     }
+    const moving = !!this._anim;
     if (this.focusY) {
       const base = this._distance();
       const d = this.camera.position.distanceTo(this.controls.target);
@@ -249,9 +329,27 @@ export class Viewer {
       this.controls.target.y = ty;
       this.camera.position.y += dy;
     }
-    this.controls.update();
-    this.renderer.render(this.scene, this.camera);
+    const changed = this.controls.update();
+    // рисуем только когда что-то изменилось — экономит батарею телефона
+    if (changed || moving || this._dirty || this.controls.autoRotate) {
+      this._dirty = false;
+      const t0 = performance.now();
+      this.renderer.render(this.scene, this.camera);
+      this._adapt(performance.now() - t0, dt);
+    }
     requestAnimationFrame(this._loop);
+  }
+
+  // Адаптивное качество: если кадр слишком тяжёлый, снижаем плотность пикселей.
+  _adapt(cpuMs, dt) {
+    const frame = Math.max(cpuMs, dt * 1000);
+    this._slow = frame > 45 ? (this._slow || 0) + 1 : Math.max(0, (this._slow || 0) - 1);
+    const pr = this.renderer.getPixelRatio();
+    if (this._slow > 8 && pr > 1) {
+      this.renderer.setPixelRatio(Math.max(1, pr - 0.25));
+      this.resize();
+      this._slow = 0;
+    }
   }
 
   snapshot() {
@@ -270,14 +368,15 @@ export class Thumbnailer {
     this.renderer.setSize(size, size, false);
     // непрозрачный фон в цвет карточки — так аддитивные блики камня
     // корректно сохраняются в картинку
-    this.renderer.setClearColor(0xf3eee7, 1);
+    this.renderer.setClearColor(0x0c1a36, 1);
     this.env = createEnv(this.renderer);
     this.mats = new MaterialLibrary(this.env);
     this.scene = new THREE.Scene();
     this.scene.environment = this.env.pmrem;
     const key = new THREE.DirectionalLight(0xffffff, 1.2);
     key.position.set(3, 6, 4);
-    this.scene.add(key, new THREE.HemisphereLight(0xffffff, 0xd8cfc4, 0.6));
+    this.scene.add(key, new THREE.HemisphereLight(0xfff6ea, 0x1b2c58, 0.55));
+    this.scene.background = thumbBackground();
     this.camera = new THREE.PerspectiveCamera(26, 1, 0.5, 2000);
     this.cache = new Map();
     this.queue = [];

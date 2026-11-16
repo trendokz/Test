@@ -18,7 +18,7 @@ const result = await build({
   minify: true,
   write: false,
   target: 'es2020',
-  external: ['three', 'three/addons/*'],
+  external: ['three', 'three/addons/*', 'three-mesh-bvh'],
 });
 const js = result.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
 const css = readFileSync(join(root, 'css/style.css'), 'utf8');
@@ -28,6 +28,7 @@ const importmap = {
     three: `${cdn}/build/three.module.min.js`,
     'three/addons/OrbitControls.js': `${cdn}/examples/jsm/controls/OrbitControls.js`,
     'three/addons/RoomEnvironment.js': `${cdn}/examples/jsm/environments/RoomEnvironment.js`,
+    'three-mesh-bvh': 'https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.8.3/build/index.module.js',
   },
 };
 
