@@ -1,6 +1,6 @@
 import {
-  BRAND, SHAPES, SHANKS, SETTINGS, SETTING_SHAPES, METALS, PURITIES, STONE_COLORS,
-  CARATS, RING_SIZES, STUD_SETTINGS, PRICING, DEFAULTS,
+  BRAND, SHAPES, SHANKS, SETTINGS, RING_MODELS, METALS, PURITIES, STONE_COLORS,
+  CARATS, STUD_CARATS, RING_SIZES, STUD_SETTINGS, STUD_SHAPES, PRICING, DEFAULTS,
 } from './config.js';
 import { shapeSVG } from './shapes.js';
 import { logoMark, logoLockup } from './logo.js';
@@ -32,29 +32,47 @@ export function priceOf(cfg) {
   const purity = byId(PURITIES, cfg.purity).price;
   const gem1 = byId(STONE_COLORS, cfg.gem1);
   const gem2 = byId(STONE_COLORS, cfg.gem2);
+  const extraCarat = PRICING.caratPrice * Math.max(0, cfg.carat - 1);
   if (cfg.type === 'studs') {
     const base = byId(STUD_SETTINGS, cfg.setting).price;
-    let p = Math.max(base * PRICING.minPriceFactor, base + PRICING.caratPrice * 2 * (cfg.carat - 1));
-    p += purity;
+    if (!base) return null; // цена по запросу
+    let p = base + extraCarat * 2 + purity;
     if (gem1.fancy) p += PRICING.fancyColorPerCarat * cfg.carat * 2;
-    if (cfg.setting === 'halo' && gem2.fancy) p += PRICING.fancySide * 2;
     return Math.round(p / 1000) * 1000;
   }
-  const base = byId(SHANKS, cfg.shank).price + byId(SETTINGS, cfg.setting).price;
-  let p = Math.max(base * PRICING.minPriceFactor, base + PRICING.caratPrice * (cfg.carat - 1));
-  p += purity;
+  let p = byId(SHANKS, cfg.shank).price + (cfg.setting === 'prong' ? 0 : byId(SETTINGS, cfg.setting).price);
+  p += extraCarat + purity;
   if (gem1.fancy) p += PRICING.fancyColorPerCarat * cfg.carat;
-  if (hasSideStones(cfg) && gem2.fancy) p += PRICING.fancySide * (cfg.setting === 'halo' && cfg.shank === 'pave' ? 2 : 1);
+  if (cfg.setting !== 'bezel' && hasSideStones(cfg) && gem2.fancy) {
+    p += PRICING.fancySide * (cfg.setting === 'halo' ? 2 : 1);
+  }
   return Math.round(p / 1000) * 1000;
 }
 
-const hasSideStones = (cfg) => cfg.setting === 'halo' || (cfg.type !== 'studs' && cfg.shank === 'pave');
-const settingAllowed = (setting, shape) => !SETTING_SHAPES[setting] || SETTING_SHAPES[setting].includes(shape);
+const isTrio = (id) => id === 'trio' || id === 'trio-pave';
+const isPave = (id) => id === 'trio-pave' || id === 'solo-pave';
+const hasSideStones = (cfg) => cfg.setting === 'halo' || (cfg.type !== 'studs' && (isTrio(cfg.shank) || isPave(cfg.shank)));
+const headMetalId = (cfg) => (cfg.head === 'same' ? cfg.metal : cfg.head);
+
+// Допустима ли каста: у колец Bezel — только безель, у остальных — крапаны или ореол;
+// у пусет ореол есть не для всех форм.
+function settingAllowed(cfg, setting) {
+  if (cfg.type === 'studs') return (STUD_SHAPES[setting] || []).includes(cfg.shape);
+  return cfg.shank === 'bezel' ? setting === 'bezel' : setting !== 'bezel';
+}
+function normalize(cfg) {
+  if (!settingAllowed(cfg, cfg.setting)) {
+    cfg.setting = cfg.type === 'studs' ? 'prong' : (cfg.shank === 'bezel' ? 'bezel' : 'prong');
+  }
+  const carats = cfg.type === 'studs' ? STUD_CARATS : CARATS;
+  if (!carats.includes(cfg.carat)) cfg.carat = carats.includes(1) ? 1 : carats[0];
+  return cfg;
+}
 
 export function productName(cfg) {
   const shape = byId(SHAPES, cfg.shape).label;
   if (cfg.type === 'studs') return `Пусеты ${byId(STUD_SETTINGS, cfg.setting).label} · ${shape}`;
-  return `Кольцо ${byId(SHANKS, cfg.shank).label} ${byId(SETTINGS, cfg.setting).label} · ${shape}`;
+  return `Кольцо ${byId(SHANKS, cfg.shank).label}${cfg.setting === 'halo' ? ' Halo' : ''} · ${shape}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -112,16 +130,15 @@ function cfgFromParams(type, p) {
     shape: pick('shape', SHAPES, DEFAULTS.shape),
     shank: pick('shank', SHANKS, DEFAULTS.shank),
     setting: pick('setting', type === 'studs' ? STUD_SETTINGS : SETTINGS, DEFAULTS.setting),
-    carat: num('carat', CARATS, DEFAULTS.carat),
+    carat: num('carat', type === 'studs' ? STUD_CARATS : CARATS, DEFAULTS.carat),
     metal: pick('metal', METALS, DEFAULTS.metal),
-    head: ['same', 'white'].includes(p.get('head')) ? p.get('head') : DEFAULTS.head,
+    head: ['same', ...METALS.map((m) => m.id)].includes(p.get('head')) ? p.get('head') : DEFAULTS.head,
     purity: pick('purity', PURITIES, DEFAULTS.purity),
     gem1: pick('gem1', STONE_COLORS, DEFAULTS.gem1),
     gem2: pick('gem2', STONE_COLORS, DEFAULTS.gem2),
     size: num('size', RING_SIZES, DEFAULTS.size),
   };
-  if (!settingAllowed(cfg.setting, cfg.shape)) cfg.setting = 'prong';
-  return cfg;
+  return normalize(cfg);
 }
 function cfgToParams(cfg) {
   const o = { shape: cfg.shape, setting: cfg.setting, carat: cfg.carat, metal: cfg.metal, head: cfg.head, purity: cfg.purity, gem1: cfg.gem1, gem2: cfg.gem2 };
@@ -204,25 +221,18 @@ function plural(n, [one, few, many]) {
 // ---------------------------------------------------------------------------
 async function renderCatalog(params) {
   const shapeIds = (params.get('shapes') || '').split(',').filter((id) => SHAPES.some((s) => s.id === id));
-  const shapes = shapeIds.length ? shapeIds : SHAPES.map((s) => s.id);
+  const shapes = SHAPES.map((s) => s.id).filter((id) => !shapeIds.length || shapeIds.includes(id));
   const type = ['rings', 'studs'].includes(params.get('type')) ? params.get('type') : 'all';
 
-  const items = [];
-  for (const shape of shapes) {
-    if (type !== 'studs') {
-      for (const sh of SHANKS) for (const st of SETTINGS) {
-        if (!settingAllowed(st.id, shape)) continue;
-        items.push({ ...DEFAULTS, type: 'ring', shape, shank: sh.id, setting: st.id });
-      }
-    }
-    if (type !== 'rings') {
-      for (const st of STUD_SETTINGS) {
-        if (!settingAllowed(st.id, shape)) continue;
-        items.push({ ...DEFAULTS, type: 'studs', shape, setting: st.id });
-      }
-    }
-  }
-  items.sort((a, b) => priceOf(a) - priceOf(b));
+  // Кольца: 9 моделей на каждую форму, по возрастанию цены.
+  // Пусеты: сначала Classic, потом Halo — в конце списка.
+  const rings = type === 'studs' ? [] : shapes.flatMap((shape) =>
+    RING_MODELS.map((m) => ({ ...DEFAULTS, type: 'ring', shape, shank: m.shank, setting: m.setting })));
+  rings.sort((a, b) => priceOf(a) - priceOf(b));
+  const studs = type === 'rings' ? [] : STUD_SETTINGS.flatMap((st) =>
+    shapes.filter((shape) => STUD_SHAPES[st.id].includes(shape))
+      .map((shape) => ({ ...DEFAULTS, type: 'studs', shape, setting: st.id })));
+  const items = [...rings, ...studs];
 
   const shapeLabel = shapeIds.length ? shapeIds.map((id) => byId(SHAPES, id).label).join(', ') : 'Все формы';
   const tab = (id, label) => `<a class="chip ${type === id ? 'is-active' : ''}" href="${catalogHash(shapeIds, id)}">${label}</a>`;
@@ -236,7 +246,7 @@ async function renderCatalog(params) {
     <div class="product-grid">
       ${items.map((cfg, i) => `<a class="card" href="${cfgHash(cfg)}" data-i="${i}">
           <div class="card__img"><div class="card__ph" aria-hidden="true">${shapeSVG(cfg.shape, 48)}</div></div>
-          <div class="card__body"><div class="card__name">${esc(productName(cfg))}</div><div class="card__price">от ${money(priceOf(cfg))}</div></div>
+          <div class="card__body"><div class="card__name">${esc(productName(cfg))}</div><div class="card__price">${priceOf(cfg) == null ? 'Цена по запросу' : `от ${money(priceOf(cfg))}`}</div></div>
         </a>`).join('')}
     </div>
   </main>`;
@@ -325,10 +335,10 @@ async function renderConfigurator(type, params) {
     optsEl.innerHTML = [
       group('Форма камня', 'shape', `<div class="shape-row">${SHAPES.map((s) => `<button class="shape-mini ${s.id === cfg.shape ? 'is-active' : ''}" data-key="shape" data-val="${s.id}" title="${esc(s.label)}">${shapeSVG(s.id, 40)}<span>${esc(s.label)}</span></button>`).join('')}</div>`),
       isRing ? group('Шинка', 'shank', pills('shank', SHANKS, cfg.shank, (x) => `<b>${esc(x.label)}</b><small>${esc(x.note)}</small>`)) : '',
-      group('Каста', 'setting', pills('setting', settings, cfg.setting, (x) => `<b>${esc(x.label)}</b>${x.note ? `<small>${esc(x.note)}</small>` : ''}`, (x) => !settingAllowed(x.id, cfg.shape))),
-      group('Карат центрального камня', 'carat', pills('carat', CARATS.map((c) => ({ id: c, label: `${c} ct` })), cfg.carat)),
+      group('Каста', 'setting', pills('setting', settings, cfg.setting, (x) => `<b>${esc(x.label)}</b>${x.note ? `<small>${esc(x.note)}</small>` : ''}`, (x) => !settingAllowed(cfg, x.id))),
+      group(isRing ? 'Карат центрального камня' : 'Карат каждого камня', 'carat', pills('carat', (isRing ? CARATS : STUD_CARATS).map((c) => ({ id: c, label: `${c} ct` })), cfg.carat)),
       group('Металл', 'metal', swatches('metal', METALS, cfg.metal)),
-      group('Металл касты', 'head', pills('head', [{ id: 'same', label: 'Как у шинки' }, { id: 'white', label: 'Белое золото' }], cfg.head)),
+      group(isRing ? 'Металл касты' : 'Металл крапанов', 'head', pills('head', [{ id: 'same', label: 'Как основной' }, ...METALS.map((m) => ({ id: m.id, label: m.label }))], cfg.head)),
       group('Проба', 'purity', pills('purity', PURITIES, cfg.purity)),
       group(isRing ? 'Центральный камень' : 'Камни', 'gem1', swatches('gem1', STONE_COLORS, cfg.gem1)),
       hasSideStones(cfg) ? group('Боковые камни', 'gem2', swatches('gem2', STONE_COLORS, cfg.gem2)) : '',
@@ -345,7 +355,7 @@ async function renderConfigurator(type, params) {
       ['Каста', byId(isRing ? SETTINGS : STUD_SETTINGS, cfg.setting).label],
       ['Карат', `${cfg.carat} ct${isRing ? '' : ' × 2'}`],
       ['Металл', `${byId(METALS, cfg.metal).label}, ${byId(PURITIES, cfg.purity).label}`],
-      cfg.head === 'white' && cfg.metal !== 'white' && ['Каста', 'белое золото'],
+      headMetalId(cfg) !== cfg.metal && ['Металл касты', byId(METALS, headMetalId(cfg)).label],
       ['Камень', byId(STONE_COLORS, cfg.gem1).label],
       hasSideStones(cfg) && ['Боковые', byId(STONE_COLORS, cfg.gem2).label],
       isRing && ['Размер', cfg.size],
@@ -359,7 +369,7 @@ async function renderConfigurator(type, params) {
   function apply(key, val, rerenderOpts) {
     if (key === 'carat' || key === 'size') val = parseFloat(val);
     cfg[key] = val;
-    if (key === 'shape' && !settingAllowed(cfg.setting, cfg.shape)) cfg.setting = 'prong';
+    normalize(cfg);
     if (rerenderOpts) renderOpts();
     renderSummary();
     syncUrl();
@@ -371,7 +381,7 @@ async function renderConfigurator(type, params) {
     if (!b || b.disabled) return;
     const key = b.dataset.key;
     b.parentElement.querySelectorAll('[data-key]').forEach((x) => x.classList.toggle('is-active', x === b));
-    apply(key, b.dataset.val, key === 'shape' || key === 'setting' || key === 'shank');
+    apply(key, b.dataset.val, true);
   });
   optsEl.addEventListener('change', (e) => { if (e.target.matches('select[data-key]')) apply(e.target.dataset.key, e.target.value, false); });
   optsEl.addEventListener('click', (e) => { if (e.target.id === 'sizeHelp') { e.preventDefault(); openSizeHelp(); } });
@@ -463,7 +473,7 @@ function openOrder(cfg) {
       `Здравствуйте! Хочу заказать: ${productName(cfg)}`,
       `Карат: ${cfg.carat} ct${isRing ? '' : ' (каждый камень)'}`,
       `Металл: ${byId(METALS, cfg.metal).label}, ${byId(PURITIES, cfg.purity).label}`,
-      cfg.head === 'white' && cfg.metal !== 'white' ? 'Каста: белое золото' : null,
+      headMetalId(cfg) !== cfg.metal ? `Металл касты: ${byId(METALS, headMetalId(cfg)).label}` : null,
       `Камень: ${byId(STONE_COLORS, cfg.gem1).label}`,
       hasSideStones(cfg) ? `Боковые камни: ${byId(STONE_COLORS, cfg.gem2).label}` : null,
       isRing ? `Размер: ${cfg.size}` : null,

@@ -173,6 +173,7 @@ function setupRenderer(renderer) {
 const VIEWS = {
   ring: {
     hero:  new THREE.Vector3(0.95, 0.55, 1.25),
+    thumb: new THREE.Vector3(0.75, 1.05, 1.0),
     front: new THREE.Vector3(0, 0.12, 1),
     side:  new THREE.Vector3(1, 0.15, 0.02),
     top:   new THREE.Vector3(0.001, 1, 0.08),
@@ -427,7 +428,7 @@ export class Thumbnailer {
     model.position.sub(sphere.center);
     this.scene.add(model);
     const kind = model.userData.kind;
-    const dir = VIEWS[kind].hero.clone().normalize();
+    const dir = (VIEWS[kind].thumb || VIEWS[kind].hero).clone().normalize();
     const d = (sphere.radius / Math.sin(THREE.MathUtils.degToRad(this.camera.fov / 2))) * 0.98;
     this.camera.position.copy(dir.multiplyScalar(d));
     this.camera.lookAt(0, 0, 0);

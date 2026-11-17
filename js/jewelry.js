@@ -257,6 +257,13 @@ const sePow = (x, p) => Math.sign(x) * Math.pow(Math.abs(x), p);
 // ---------------------------------------------------------------------------
 //  Шинки
 // ---------------------------------------------------------------------------
+// Металл касты: «как шинка» или выбранный отдельно
+const headMetalId = (c) => (!c.head || c.head === 'same' ? c.metal : c.head);
+
+// Модель кольца -> стиль шинки
+const SHANK_STYLE = { solo: 'classic', trio: 'classic', bezel: 'classic', 'solo-pave': 'pave', 'trio-pave': 'pave' };
+export const isTrilogy = (id) => id === 'trio' || id === 'trio-pave';
+
 function buildShank(cfg, Ri, mats, group) {
   const metal = mats.metal(cfg.metal);
   const topTaper = (phi, amount) => {
@@ -266,7 +273,7 @@ function buildShank(cfg, Ri, mats, group) {
   };
   const SEGS = 220;
   let t, w;
-  switch (cfg.shank) {
+  switch (SHANK_STYLE[cfg.shank] || cfg.shank) {
     case 'slim': {
       t = 1.45; w = 1.7;
       const g = sweepRing(Ri + t / 2, SEGS, 28, (phi, a) => {
@@ -299,7 +306,7 @@ function buildShank(cfg, Ri, mats, group) {
       // дорожка камней по верхней дуге
       const s = 1.15;
       const R = Ri + t - s * 0.12;
-      const headGap = (cfg._stoneW * 0.62 + 0.8) / R;
+      const headGap = (cfg._paveGap ?? cfg._stoneW * 0.62 + 0.8) / R;
       const span = (78 * Math.PI) / 180;
       const stepA = (s * 1.12) / R;
       const geo = diamondGeometry('round', s);
@@ -363,8 +370,8 @@ function nearestByAngle(pts, deg) {
   const target = (deg * Math.PI) / 180;
   let best = 0, bd = Infinity;
   pts.forEach(([x, z], i) => {
-    let d = Math.abs(Math.atan2(z, x) - target);
-    d = Math.min(d, Math.PI * 2 - d);
+    const a = Math.atan2(z, x) - target;
+    const d = Math.abs(Math.atan2(Math.sin(a), Math.cos(a))); // разница углов с учётом перехода через 360°
     if (d < bd) { bd = d; best = i; }
   });
   return pts[best];
@@ -376,7 +383,7 @@ export function buildHead(cfg, mats, { baseY = null, baseHalfWidth = 1.1 } = {})
   const geo = diamondGeometry(cfg.shape, W);
   const { crown, pav } = geo.userData;
   const outline = getOutline(cfg.shape).points.map(([x, z]) => [x * W, z * W]);
-  const headMetal = mats.metal(cfg.head === 'white' ? 'white' : cfg.metal);
+  const headMetal = mats.metal(headMetalId(cfg));
   if (mats.raytrace) grp.add(createGemMesh(geo, mats.gemRT(cfg.gem1, geo)));
   else grp.add(stoneMesh(geo, mats.gem(cfg.gem1)));
 
@@ -411,11 +418,13 @@ export function buildHead(cfg, mats, { baseY = null, baseHalfWidth = 1.1 } = {})
 
   // Крапана
   const angles = PRONG_ANGLES[cfg.shape] || PRONG_ANGLES.round;
-  const nProngs = cfg.setting === 'halo' ? Math.min(angles.length, 4) : angles.length;
+  // с ореолом у круглого камня 4 крапана по диагоналям, у остальных — как обычно
+  const prongAngles = cfg.setting === 'halo' && cfg.shape === 'round' ? [45, 135, 225, 315] : angles;
+  const nProngs = prongAngles.length;
   const rail = outline.map(([x, z]) => [x * 0.8, z * 0.8]);
   grp.add(tube(outlinePoints3(rail, 1, -pav * 0.45), pr * 0.62, true, headMetal, 96));
   for (let i = 0; i < nProngs; i++) {
-    const [x, z] = nearestByAngle(outline, angles[i]);
+    const [x, z] = nearestByAngle(outline, prongAngles[i]);
     const len = Math.hypot(x, z) || 1;
     const nx = x / len, nz = z / len;
     const tipIn = 0.55 + pr * 0.6;
@@ -466,19 +475,51 @@ export function buildHead(cfg, mats, { baseY = null, baseHalfWidth = 1.1 } = {})
 // ---------------------------------------------------------------------------
 //  Кольцо
 // ---------------------------------------------------------------------------
+function stoneDepth(shape, width) {
+  const geo = diamondGeometry(shape, width); // только для размеров
+  const { pav } = geo.userData;
+  geo.dispose();
+  return pav;
+}
+
 export function buildRing(cfg, mats) {
   const group = new THREE.Group();
   const c = { ...cfg, _stoneW: stoneWidth(cfg.shape, cfg.carat) };
+  const W = c._stoneW;
   const Ri = cfg.size / 2;
+  const trilogy = isTrilogy(c.shank);
+  // трилогия: боковые камни-груши вдоль шинки, остриём к центральному
+  let side = null;
+  if (trilogy) {
+    const Ws = THREE.MathUtils.clamp(W * 0.6, 3, 6.2);
+    const Ls = Ws * getOutline('pear').aspect;
+    const haloExtra = c.setting === 'halo' ? THREE.MathUtils.clamp(W * 0.13, 0.95, 1.5) + 0.45 : 0;
+    // ширина центрального камня поперёк шинки (по X) — 0.5·W
+    side = { Ws, Ls, offset: W / 2 + haloExtra + Ls / 2 + 0.05 };
+    c._paveGap = side.offset + Ls / 2 + 0.9;
+  }
   const { t, w } = buildShank(c, Ri, mats, group);
-  const geo = diamondGeometry(cfg.shape, c._stoneW); // только для размеров
-  const { pav } = geo.userData;
-  geo.dispose();
+  const pav = stoneDepth(c.shape, W);
   const lift = c.setting === 'bezel' ? 0.5 : 0.7;
   const yc = Ri + t + pav + lift;
   const head = buildHead(c, mats, { baseY: -(pav + lift) - 0.25, baseHalfWidth: w / 2 });
   head.group.position.y = yc;
   group.add(head.group);
+
+  if (side) {
+    const pavS = stoneDepth('pear', side.Ws);
+    const liftS = 0.45;
+    const Rs = Ri + t + pavS + liftS;
+    const delta = side.offset / Rs;
+    const sideCfg = { ...c, shape: 'pear', setting: 'prong', gem1: c.gem2, _stoneW: side.Ws };
+    for (const dir of [1, -1]) {
+      const sh = buildHead(sideCfg, mats, { baseY: -(pavS + liftS) - 0.25, baseHalfWidth: w / 2 });
+      // остриё груши (+Z) поворачиваем к центру, затем наклоняем по шинке
+      sh.group.rotation.set(0, dir > 0 ? -Math.PI / 2 : Math.PI / 2, -dir * delta, 'ZYX');
+      sh.group.position.set(dir * Rs * Math.sin(delta), Rs * Math.cos(delta), 0);
+      group.add(sh.group);
+    }
+  }
   group.userData.kind = 'ring';
   return group;
 }
@@ -489,7 +530,7 @@ export function buildRing(cfg, mats) {
 export function buildStuds(cfg, mats) {
   const group = new THREE.Group();
   const c = { ...cfg, _stoneW: stoneWidth(cfg.shape, cfg.carat) };
-  const metal = mats.metal(c.head === 'white' ? 'white' : c.metal);
+  const metal = mats.metal(headMetalId(c));
   const gap = Math.max(c._stoneW * (getOutline(c.shape).aspect > 1.2 ? 1.25 : 1.6), 7);
   for (const side of [-1, 1]) {
     const stud = new THREE.Group();

@@ -17,40 +17,48 @@ export const BRAND = {
   instagram: '',                   // например 'https://www.instagram.com/yourbrand/'
 };
 
-// Формы бриллианта. id используется в геометрии (js/shapes.js).
+// Формы бриллианта в порядке показа. id используется в геометрии (js/shapes.js).
 export const SHAPES = [
-  { id: 'round',    label: 'Круг' },
-  { id: 'oval',     label: 'Овал' },
+  { id: 'round',    label: 'Круглый' },
   { id: 'princess', label: 'Принцесса' },
+  { id: 'radiant',  label: 'Радиант' },
   { id: 'cushion',  label: 'Кушон' },
+  { id: 'oval',     label: 'Овал' },
+  { id: 'pear',     label: 'Груша' },
+  { id: 'heart',    label: 'Сердце' },
+  { id: 'marquise', label: 'Маркиз' },
   { id: 'emerald',  label: 'Изумруд' },
   { id: 'asscher',  label: 'Ашер' },
-  { id: 'radiant',  label: 'Радиант' },
-  { id: 'pear',     label: 'Груша' },
-  { id: 'marquise', label: 'Маркиз' },
-  { id: 'heart',    label: 'Сердце' },
 ];
 
-// Модели шинки (ободка кольца). price — базовая цена кольца с камнем 1 ct.
+// Модели колец (шинка). price — базовая цена с центральным камнем 1 ct.
 export const SHANKS = [
-  { id: 'classic', label: 'Classic', note: 'Гладкая округлая шинка',     price: 690000 },
-  { id: 'slim',    label: 'Slim',    note: 'Тонкая изящная шинка',        price: 640000 },
-  { id: 'knife',   label: 'Knife',   note: 'Острое ребро сверху',         price: 720000 },
-  { id: 'pave',    label: 'Pavé',    note: 'Дорожка из камней',           price: 840000 },
-  { id: 'twist',   label: 'Twist',   note: 'Две переплетённые нити',      price: 790000 },
+  { id: 'trio',      label: 'Trio',      note: 'Три камня: груши по бокам',  price: 800000 },
+  { id: 'trio-pave', label: 'Trio Pavé', note: 'Трилогия и дорожка камней',  price: 900000 },
+  { id: 'solo',      label: 'Solo',      note: 'Классический солитер',       price: 550000 },
+  { id: 'solo-pave', label: 'Solo Pavé', note: 'Солитер и дорожка камней',   price: 650000 },
+  { id: 'bezel',     label: 'Bezel',     note: 'Камень в ободке',            price: 550000 },
 ];
 
-// Касты (крепление центрального камня). price — доплата.
+// Касты (крепление центрального камня). price — доплата к модели.
 export const SETTINGS = [
-  { id: 'prong', label: 'Крапана',  note: 'Классические лапки',          price: 0 },
-  { id: 'halo',  label: 'Halo',     note: 'Ореол из мелких камней',      price: 180000 },
-  { id: 'bezel', label: 'Bezel',    note: 'Сплошной металлический обод', price: 60000 },
+  { id: 'prong', label: 'Крапаны', note: 'Лапки держат камень',  price: 0 },
+  { id: 'halo',  label: 'Ореол',   note: 'Ободок из мелких камней', price: 150000 },
+  { id: 'bezel', label: 'Безель',  note: 'Сплошной ободок',     price: 100000 },
 ];
 
-// Формы, недоступные для определённой касты (пусто — доступны все)
-export const SETTING_SHAPES = {
-  halo: ['round', 'oval', 'pear', 'marquise', 'emerald', 'radiant', 'cushion', 'princess'],
-};
+// Все модели колец каталога (шинка + каста) — по 9 на каждую форму камня.
+export const RING_MODELS = [
+  { shank: 'trio', setting: 'prong' },
+  { shank: 'trio', setting: 'halo' },
+  { shank: 'trio-pave', setting: 'prong' },
+  { shank: 'trio-pave', setting: 'halo' },
+  { shank: 'solo', setting: 'prong' },
+  { shank: 'solo', setting: 'halo' },
+  { shank: 'solo-pave', setting: 'prong' },
+  { shank: 'solo-pave', setting: 'halo' },
+  { shank: 'bezel', setting: 'bezel' },
+];
 
 export const METALS = [
   { id: 'white',  label: 'Белое золото',   color: '#d9dde3' },
@@ -60,36 +68,44 @@ export const METALS = [
 
 export const PURITIES = [
   { id: '585', label: '585 · 14K', price: 0 },
-  { id: '750', label: '750 · 18K', price: 95000 },
+  { id: '750', label: '750 · 18K', price: 100000 },
 ];
 
 export const STONE_COLORS = [
   { id: 'white',  label: 'Белый',      color: '#ffffff', fancy: false },
+  { id: 'green',  label: 'Зелёный',    color: '#45d68a', fancy: true },
   { id: 'yellow', label: 'Жёлтый',     color: '#ffd84a', fancy: true },
   { id: 'pink',   label: 'Розовый',    color: '#ff9fc4', fancy: true },
   { id: 'blue',   label: 'Синий',      color: '#4f8dff', fancy: true },
-  { id: 'green',  label: 'Зелёный',    color: '#45d68a', fancy: true },
+  { id: 'ruby',   label: 'Рубин',      color: '#c8103e', fancy: true },
+  { id: 'red',    label: 'Красный',    color: '#ff3b3b', fancy: true },
+  { id: 'purple', label: 'Фиолетовый', color: '#9b5cf0', fancy: true },
   { id: 'black',  label: 'Чёрный',     color: '#2a2a2e', fancy: true },
+  { id: 'orange', label: 'Оранжевый',  color: '#ff8a2a', fancy: true },
 ];
 
-export const CARATS = [0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3];
+export const CARATS = [1, 1.5, 2, 3, 4, 5];            // кольца
+export const STUD_CARATS = [0.5, 1, 1.5, 2, 3];        // пусеты, каждый камень
 export const RING_SIZES = [15, 15.5, 16, 16.5, 17, 17.5, 18, 18.5, 19, 19.5, 20, 21];
 
-// Пусеты (серьги-гвоздики). price — цена пары с камнями по 1 ct.
+// Пусеты (серьги-гвоздики). price: null — «Цена по запросу».
 export const STUD_SETTINGS = [
-  { id: 'prong', label: 'Classic', price: 980000 },
-  { id: 'halo',  label: 'Halo',    price: 1240000 },
-  { id: 'bezel', label: 'Bezel',   price: 1060000 },
+  { id: 'prong', label: 'Classic', price: null },
+  { id: 'halo',  label: 'Halo',    price: null },
 ];
+// Формы, доступные для каждого вида пусет
+export const STUD_SHAPES = {
+  prong: ['round', 'princess', 'radiant', 'cushion', 'oval', 'pear', 'heart', 'marquise', 'emerald', 'asscher'],
+  halo: ['round', 'oval', 'pear', 'marquise', 'emerald', 'radiant'],
+};
 
 export const PRICING = {
-  caratPrice: 520000,          // за каждый карат сверх 1 ct (меньше 1 ct — скидка)
-  minPriceFactor: 0.55,        // нижняя граница цены относительно базы
-  fancyColorPerCarat: 120000,  // доплата за цветной центральный камень, за 1 ct
-  fancySide: 70000,            // доплата за цветные боковые камни
+  caratPrice: 200000,          // за каждый карат сверх 1 ct
+  fancyColorPerCarat: 100000,  // цветной центральный камень, за 1 ct
+  fancySide: 100000,           // цветные боковые камни (с ореолом — вдвое)
 };
 
 export const DEFAULTS = {
-  shape: 'round', shank: 'classic', setting: 'prong', carat: 1,
+  shape: 'round', shank: 'solo', setting: 'prong', carat: 1,
   metal: 'white', head: 'same', purity: '585', gem1: 'white', gem2: 'white', size: 17,
 };
