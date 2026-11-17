@@ -454,51 +454,56 @@ function modal(html) {
   return { el: wrap, close };
 }
 
+// Короткий текст заявки — так ссылка на WhatsApp получается компактной
+function orderText(cfg, f) {
+  const isRing = cfg.type !== 'studs';
+  const low = (t) => t.charAt(0).toLowerCase() + t.slice(1);
+  const details = [
+    `${cfg.carat} ct${isRing ? '' : ' ×2'}`,
+    `${low(byId(METALS, cfg.metal).label)} ${cfg.purity}`,
+    headMetalId(cfg) !== cfg.metal ? `каста — ${low(byId(METALS, headMetalId(cfg)).label)}` : null,
+    `камень — ${low(byId(STONE_COLORS, cfg.gem1).label)}`,
+    hasSideStones(cfg) ? `боковые камни — ${low(byId(STONE_COLORS, cfg.gem2).label)}` : null,
+    isRing ? `размер ${cfg.size}` : null,
+  ].filter(Boolean).join(', ');
+  return [
+    `Здравствуйте! Заявка ${BRAND.name}:`,
+    productName(cfg),
+    details,
+    `Цена: ${money(priceOf(cfg))}`,
+    [f.name, f.phone].filter(Boolean).join(', '),
+    f.comment || null,
+    cfgUrl(cfg),
+  ].filter(Boolean).join('\n');
+}
+
 function openOrder(cfg) {
   const m = modal(`<h2>Заявка на изделие</h2>
     <p class="muted">${esc(productName(cfg))} · ${money(priceOf(cfg))}</p>
     <form class="form" id="orderForm">
-      <label>Ваше имя<input name="name" required autocomplete="name"></label>
-      <label>Телефон<input name="phone" type="tel" required autocomplete="tel" placeholder="+7"></label>
-      ${BRAND.cities.length > 1 ? `<label>Город<select name="city">${BRAND.cities.map((c) => `<option value="${c.id}">${esc(c.label)}</option>`).join('')}</select></label>` : ''}
-      <label>Комментарий<textarea name="comment" rows="2" placeholder="Например, гравировка или срок"></textarea></label>
-      <button class="btn btn--primary" type="submit">Отправить в WhatsApp</button>
+      <label>Ваше имя<input id="orderName" name="name" required autocomplete="name"></label>
+      <label>Телефон<input id="orderPhone" name="phone" type="tel" required autocomplete="tel" placeholder="+7"></label>
+      ${BRAND.cities.length > 1 ? `<label>Город<select id="orderCity" name="city">${BRAND.cities.map((c) => `<option value="${c.id}">${esc(c.label)}</option>`).join('')}</select></label>` : ''}
+      <label>Комментарий<textarea id="orderComment" name="comment" rows="2" placeholder="Например, гравировка или срок"></textarea></label>
+      <a class="btn btn--primary btn--block" id="waLink" href="#" target="_blank" rel="noopener">Отправить в WhatsApp</a>
+      <p class="muted order-alt">Или напишите нам: <b class="selectable">${esc(fmtPhone(BRAND.cities[0].whatsapp))}</b></p>
     </form>`);
-  $('#orderForm', m.el).addEventListener('submit', (e) => {
-    e.preventDefault();
-    const f = new FormData(e.target);
-    const city = BRAND.cities.find((c) => c.id === f.get('city')) || BRAND.cities[0];
-    const isRing = cfg.type !== 'studs';
-    const lines = [
-      `Здравствуйте! Хочу заказать: ${productName(cfg)}`,
-      `Карат: ${cfg.carat} ct${isRing ? '' : ' (каждый камень)'}`,
-      `Металл: ${byId(METALS, cfg.metal).label}, ${byId(PURITIES, cfg.purity).label}`,
-      headMetalId(cfg) !== cfg.metal ? `Металл касты: ${byId(METALS, headMetalId(cfg)).label}` : null,
-      `Камень: ${byId(STONE_COLORS, cfg.gem1).label}`,
-      hasSideStones(cfg) ? `Боковые камни: ${byId(STONE_COLORS, cfg.gem2).label}` : null,
-      isRing ? `Размер: ${cfg.size}` : null,
-      `Цена: ${money(priceOf(cfg))}`,
-      `Имя: ${f.get('name')}`,
-      `Телефон: ${f.get('phone')}`,
-      f.get('comment') ? `Комментарий: ${f.get('comment')}` : null,
-      cfgUrl(cfg) ? `Ссылка: ${cfgUrl(cfg)}` : null,
-    ].filter(Boolean);
-    const text = lines.join('\n');
-    const href = `https://wa.me/${city.whatsapp}?text=${encodeURIComponent(text)}`;
-    const box = m.el.querySelector('.modal__box');
-    box.innerHTML = `<button class="modal__x" aria-label="Закрыть">×</button>
-      <h2>Заявка готова</h2>
-      <p class="muted">Нажмите кнопку — откроется WhatsApp с готовым сообщением. Останется только отправить его.</p>
-      <a class="btn btn--primary btn--block" href="${esc(href)}" target="_blank" rel="noopener">Открыть WhatsApp</a>
-      <p class="muted order-alt">Если WhatsApp не открылся, напишите на номер <b class="selectable">${esc(fmtPhone(city.whatsapp))}</b> и вставьте текст заявки:</p>
-      <textarea class="order-text" id="orderText" rows="7" readonly>${esc(text)}</textarea>
-      <button class="btn btn--ghost btn--block" id="copyOrder" type="button">Скопировать текст заявки</button>`;
-    $('#copyOrder', box).addEventListener('click', async () => {
-      const ta = $('#orderText', box);
-      try { await navigator.clipboard.writeText(text); toast('Текст скопирован'); }
-      catch { ta.focus(); ta.select(); }
-    });
+  const form = $('#orderForm', m.el);
+  const link = $('#waLink', m.el);
+  // Ссылка всегда актуальна: нажатие сразу открывает WhatsApp с готовым текстом
+  const update = () => {
+    const f = Object.fromEntries(new FormData(form));
+    const city = BRAND.cities.find((c) => c.id === f.city) || BRAND.cities[0];
+    link.href = `https://wa.me/${city.whatsapp}?text=${encodeURIComponent(orderText(cfg, f))}`;
+  };
+  form.addEventListener('input', update);
+  update();
+  link.addEventListener('click', (e) => {
+    if (!form.reportValidity()) { e.preventDefault(); return; }
+    update();
+    setTimeout(() => { m.close(); toast('Открываем WhatsApp…'); }, 300);
   });
+  form.addEventListener('submit', (e) => { e.preventDefault(); link.click(); });
 }
 
 function openSizeHelp() {
