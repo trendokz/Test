@@ -152,9 +152,9 @@ function thumbBackground() {
   c.width = c.height = 512;
   const g = c.getContext('2d');
   const grd = g.createRadialGradient(256, 225, 10, 256, 240, 380);
-  grd.addColorStop(0, '#2a4c94');
-  grd.addColorStop(0.45, '#102654');
-  grd.addColorStop(1, '#050b1b');
+  grd.addColorStop(0, '#2d4386');
+  grd.addColorStop(0.45, '#15204a');
+  grd.addColorStop(1, '#070c1f');
   g.fillStyle = grd;
   g.fillRect(0, 0, 512, 512);
   const t = new THREE.CanvasTexture(c);

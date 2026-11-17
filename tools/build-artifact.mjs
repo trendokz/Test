@@ -32,7 +32,8 @@ const importmap = {
   },
 };
 
-const html = `<title>Конструктор украшений</title>
+const html = `<title>AISUL Конструктор</title>
+<link rel="icon" href="data:image/svg+xml,${encodeURIComponent(readFileSync(join(root, "favicon.svg"), "utf8"))}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Manrope:wght@400;500;600&display=swap" rel="stylesheet">

@@ -1,20 +1,21 @@
 :root {
   /* Тёмно-синяя «бархатная» тема с шампанским золотом */
   color-scheme: dark;
-  --bg: #071127;
-  --surface: #0d1b3a;
-  --surface-2: #132550;
-  --ink: #f2eadb;
-  --ink-2: #9ea9c4;
-  --line: #22355f;
-  --line-strong: #3a5288;
-  --accent: #d6b273;
-  --accent-2: #f0d7a4;
-  --accent-ink: #0a1430;
-  --stage-1: #1f3d7d;
-  --stage-2: #050b1b;
-  --glass: rgba(10, 22, 50, .78);
-  --thumb: #0c1a36;
+  /* цвета логотипа AISUL: синий #121B3A и золото #D8BE8D */
+  --bg: #0e1631;
+  --surface: #121b3a;
+  --surface-2: #19254c;
+  --ink: #f4efe4;
+  --ink-2: #a2aac3;
+  --line: #26325a;
+  --line-strong: #3d4c80;
+  --accent: #d8be8d;
+  --accent-2: #ecdab4;
+  --accent-ink: #121b3a;
+  --stage-1: #2a3f7e;
+  --stage-2: #070c1f;
+  --glass: rgba(18, 27, 58, .8);
+  --thumb: #121b3a;
   --radius: 14px;
   --font-serif: 'Cormorant Garamond', Georgia, serif;
   --font-sans: 'Manrope', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -25,8 +26,8 @@
 html, body { margin: 0; }
 body {
   background:
-    radial-gradient(1100px 620px at 15% -8%, rgba(46, 84, 170, .35), transparent 62%),
-    radial-gradient(900px 520px at 100% 0%, rgba(30, 58, 125, .3), transparent 58%),
+    radial-gradient(1100px 620px at 15% -8%, rgba(52, 72, 150, .32), transparent 62%),
+    radial-gradient(900px 520px at 100% 0%, rgba(36, 52, 118, .28), transparent 58%),
     var(--bg);
   background-attachment: fixed;
   color: var(--ink);
@@ -49,7 +50,13 @@ h1, h2 { font-family: var(--font-serif); font-weight: 600; letter-spacing: 0.01e
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--line);
 }
-.brand { color: var(--accent-2); justify-self: center; font-family: var(--font-serif); font-size: 26px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; }
+.brand { color: var(--ink); justify-self: center; display: inline-flex; align-items: center; gap: 10px; font-family: var(--font-serif); font-size: 25px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; }
+.brand span { margin-right: -0.2em; }
+.brand__mark { width: 30px; height: auto; color: var(--accent); }
+.hero__logo { display: flex; justify-content: center; margin-bottom: 26px; }
+.logo-lockup { display: inline-flex; flex-direction: column; align-items: center; gap: 18px; }
+.logo-lockup__mark { width: 74px; height: auto; color: var(--accent); filter: drop-shadow(0 6px 22px rgba(216, 190, 141, .25)); }
+.logo-lockup__word { font-family: var(--font-serif); font-weight: 500; font-size: clamp(40px, 7vw, 60px); line-height: 1; letter-spacing: 0.24em; margin-right: -0.24em; color: var(--ink); }
 .topbar__back { font-size: 22px; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; }
 .topbar__back:hover { background: var(--line); }
 .topbar__link { justify-self: end; font-size: 13px; color: var(--ink-2); }
@@ -118,8 +125,8 @@ h1, h2 { font-family: var(--font-serif); font-weight: 600; letter-spacing: 0.01e
 .stage {
   position: sticky; top: var(--topbar-h); height: calc(100vh - var(--topbar-h));
   background:
-    radial-gradient(ellipse 65% 55% at 50% 44%, rgba(70, 120, 220, .28), transparent 70%),
-    radial-gradient(ellipse at 50% 40%, var(--stage-1) 0%, #0d214c 45%, var(--stage-2) 100%);
+    radial-gradient(ellipse 65% 55% at 50% 44%, rgba(90, 120, 210, .24), transparent 70%),
+    radial-gradient(ellipse at 50% 40%, var(--stage-1) 0%, #15204a 45%, var(--stage-2) 100%);
   overflow: hidden;
 }
 .stage:fullscreen, .stage.is-max { position: fixed; inset: 0; height: 100%; z-index: 50; }
@@ -209,7 +216,8 @@ h1, h2 { font-family: var(--font-serif); font-weight: 600; letter-spacing: 0.01e
   .stage__tools button { padding: 7px 10px; font-size: 12px; }
   .stage__zoom { right: 10px; }
   .stage__zoom button { width: 36px; height: 36px; }
-  .brand { font-size: 22px; }
+  .brand { font-size: 20px; gap: 8px; }
+  .brand__mark { width: 24px; }
   .topbar { grid-template-columns: 48px 1fr 64px; }
   .sticky-cta .btn { min-width: 0; width: 100%; }
 }

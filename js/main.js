@@ -3,6 +3,7 @@ import {
   CARATS, RING_SIZES, STUD_SETTINGS, PRICING, DEFAULTS,
 } from './config.js';
 import { shapeSVG } from './shapes.js';
+import { logoMark, logoLockup } from './logo.js';
 
 const app = document.getElementById('app');
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -138,7 +139,7 @@ const cfgText = (cfg) => `${productName(cfg)}, ${cfg.carat} ct, ${byId(METALS, c
 function header(back) {
   return `<header class="topbar">
     ${back ? `<a class="topbar__back" href="${back}" aria-label="Назад">←</a>` : '<span class="topbar__back"></span>'}
-    <a class="brand" href="#home">${esc(BRAND.name)}</a>
+    <a class="brand" href="#home" aria-label="${esc(BRAND.name)} — на главную">${logoMark('brand__mark')}<span>${esc(BRAND.name)}</span></a>
     <a class="topbar__link" href="#catalog">Каталог</a>
   </header>`;
 }
@@ -151,6 +152,7 @@ function renderHome() {
   app.innerHTML = `${header()}
   <main class="home">
     <section class="hero">
+      <div class="hero__logo">${logoLockup(esc(BRAND.name))}</div>
       <p class="eyebrow">${esc(BRAND.tagline)}</p>
       <h1>Соберите своё украшение</h1>
       <p class="lead">Выберите форму бриллианта — покажем подходящие кольца и пусеты. Каждое изделие можно рассмотреть в 3D со всех сторон и настроить: металл, камни, карат, размер.</p>
