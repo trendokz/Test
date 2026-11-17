@@ -9,10 +9,10 @@ export const BRAND = {
   tagline: 'Украшения с бриллиантами на заказ',
   currency: '₸',
   locale: 'ru-KZ',
-  // Номера WhatsApp в международном формате без "+" (ЗАМЕНИТЕ на свои)
+  // Номера WhatsApp в международном формате без "+".
+  // Если добавить по номеру на каждый город, в заявке появится выбор города.
   cities: [
-    { id: 'almaty', label: 'Алматы', whatsapp: '77000000000' },
-    { id: 'astana', label: 'Астана', whatsapp: '77000000001' },
+    { id: 'main', label: 'Казахстан', whatsapp: '77006899152' },
   ],
   instagram: '',                   // например 'https://www.instagram.com/yourbrand/'
 };

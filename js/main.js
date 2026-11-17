@@ -9,6 +9,7 @@ const app = document.getElementById('app');
 const $ = (sel, root = document) => root.querySelector(sel);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const byId = (list, id) => list.find((x) => x.id === id) || list[0];
+const fmtPhone = (d) => (/^7\d{10}$/.test(d) ? `+7 ${d.slice(1, 4)} ${d.slice(4, 7)} ${d.slice(7)}` : `+${d}`);
 const money = (n) => (n == null ? 'Цена по запросу' : `${Math.round(n).toLocaleString(BRAND.locale)} ${BRAND.currency}`);
 
 let viewerMod = null;      // модуль 3D загружается лениво
@@ -449,7 +450,7 @@ function openOrder(cfg) {
     <form class="form" id="orderForm">
       <label>Ваше имя<input name="name" required autocomplete="name"></label>
       <label>Телефон<input name="phone" type="tel" required autocomplete="tel" placeholder="+7"></label>
-      <label>Город<select name="city">${BRAND.cities.map((c) => `<option value="${c.id}">${esc(c.label)}</option>`).join('')}</select></label>
+      ${BRAND.cities.length > 1 ? `<label>Город<select name="city">${BRAND.cities.map((c) => `<option value="${c.id}">${esc(c.label)}</option>`).join('')}</select></label>` : ''}
       <label>Комментарий<textarea name="comment" rows="2" placeholder="Например, гравировка или срок"></textarea></label>
       <button class="btn btn--primary" type="submit">Отправить в WhatsApp</button>
     </form>`);
@@ -479,7 +480,7 @@ function openOrder(cfg) {
       <h2>Заявка готова</h2>
       <p class="muted">Нажмите кнопку — откроется WhatsApp с готовым сообщением. Останется только отправить его.</p>
       <a class="btn btn--primary btn--block" href="${esc(href)}" target="_blank" rel="noopener">Открыть WhatsApp</a>
-      <p class="muted order-alt">Если WhatsApp не открылся, напишите на номер <b class="selectable">+${esc(city.whatsapp)}</b> и вставьте текст заявки:</p>
+      <p class="muted order-alt">Если WhatsApp не открылся, напишите на номер <b class="selectable">${esc(fmtPhone(city.whatsapp))}</b> и вставьте текст заявки:</p>
       <textarea class="order-text" id="orderText" rows="7" readonly>${esc(text)}</textarea>
       <button class="btn btn--ghost btn--block" id="copyOrder" type="button">Скопировать текст заявки</button>`;
     $('#copyOrder', box).addEventListener('click', async () => {
